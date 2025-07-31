@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Interfaces/CharacterInterface.h"
+#include "Interfaces/InteractInterface.h"
+#include "Structs/InteractStructs.h"
 #include "BaseCharacter.generated.h"
 
 class UWidgetComponent;
@@ -13,7 +15,7 @@ class UCameraComponent;
 struct FInputActionValue;
 
 UCLASS()
-class UNDERCOOKED_API ABaseCharacter : public ACharacter, public ICharacterInterface
+class UNDERCOOKED_API ABaseCharacter : public ACharacter, public ICharacterInterface, public IInteractInterface
 {
 	GENERATED_BODY()
 
@@ -37,6 +39,17 @@ protected:
 	void DoMove(float Right, float Forward);
 
 	void ToggleSprint(const FInputActionValue& Value);
+
+	void Interact(const FInputActionValue& Value);
+	void InteractOngoing(const FInputActionValue& Value);
+	void InteractCompleted(const FInputActionValue& Value);
+	
+
+private:
+
+	// IInteractInterface implementation
+	virtual void AddInteractableActor(AInteractableActor* InteractableActor) override;
+	virtual void RemoveInteractableActor(AInteractableActor* InteractableActor) override;
 	
 /* ------------------ Proprieties ------------------ */
 
@@ -50,25 +63,22 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input")
 	UInputAction* SprintAction = nullptr;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input")
+	UInputAction* InteractAction = nullptr;
+
 
 	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera = nullptr;
-
-	/* * Interaction Progress Widget
-	 * This widget is used to show the progress of an interaction, such as cooking or serving a dish.
-	 * It is attached to the character and will be visible when the character is interacting with an object.
-	 */
-	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
-	TSubclassOf<UUserWidget> InteractionProgressWidget = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Widgets")
 	UWidgetComponent* InteractionProgress = nullptr;
 	
 private:
 
-	
+	UPROPERTY()
+	AInteractableActor* CurrentInteractableActor = nullptr; // The currently interactable actor, if any
 
-	
+	FCurrentInteraction CurrentInteraction = FCurrentInteraction(); // Current interaction state
 	
 };

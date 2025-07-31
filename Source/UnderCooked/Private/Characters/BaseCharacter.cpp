@@ -3,6 +3,7 @@
 
 #include "Public/Characters/BaseCharacter.h"
 #include "EnhancedInputComponent.h"
+#include "Actors/InteractableActor.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/WidgetComponent.h"
@@ -14,6 +15,7 @@ ABaseCharacter::ABaseCharacter()
 {
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(80.f, 220.0f);
@@ -44,7 +46,7 @@ ABaseCharacter::ABaseCharacter()
 	// Create the interaction progress widget
 	InteractionProgress = CreateDefaultSubobject<UWidgetComponent>(TEXT("InteractionProgress"));
 	InteractionProgress->SetupAttachment(RootComponent);
-	InteractionProgress->SetWidgetClass(InteractionProgressWidget);
+	
 }
 
 // Called when the game starts or when spawned
@@ -63,7 +65,14 @@ void ABaseCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 		// Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ABaseCharacter::Move);
 
+		// Sprinting
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Triggered, this, &ABaseCharacter::ToggleSprint);
+
+		// Interacting
+		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &ABaseCharacter::Interact);
+		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Triggered, this, &ABaseCharacter::InteractOngoing);
+		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Completed, this, &ABaseCharacter::InteractCompleted);
+		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Canceled, this, &ABaseCharacter::InteractCompleted);
 	}
 	else
 	{
@@ -122,3 +131,75 @@ void ABaseCharacter::ToggleSprint(const FInputActionValue& Value)
 		}
 	}
 }
+
+void ABaseCharacter::Interact(const FInputActionValue& Value)
+{
+	if (CurrentInteractableActor != nullptr)
+	{
+		CurrentInteraction.InteractableActor = CurrentInteractableActor;
+		CurrentInteraction.InteractionStartTime = FPlatformTime::Seconds();
+		CurrentInteraction.InteractionDuration = CurrentInteractableActor->InteractionDuration;
+		CurrentInteraction.bTimedInteract = CurrentInteractableActor->bIsTimedInteract;
+	}
+}
+
+void ABaseCharacter::InteractOngoing(const FInputActionValue& Value)
+{
+	if (CurrentInteraction.bTimedInteract)
+	{
+		float Progress = (FPlatformTime::Seconds() - CurrentInteraction.InteractionStartTime) / CurrentInteraction.InteractionDuration;
+		// Check if widget implements interface
+
+		if (Progress <= 1.0f)
+		{
+			UUserWidget* Widget = Cast<UUserWidget>(InteractionProgress->GetWidget());
+			if (Widget && Widget->Implements<UInteractInterface>())
+			{
+				Execute_InteractionProgress(Widget, Progress);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("'%s' InteractionWidget does not implement IInteractInterface!"), *GetNameSafe(this));
+			}
+		}
+	}
+	
+}
+
+void ABaseCharacter::InteractCompleted(const FInputActionValue& Value)
+{
+	CurrentInteraction = FCurrentInteraction(); // Reset current interaction
+
+	UUserWidget* Widget = Cast<UUserWidget>(InteractionProgress->GetWidget());
+	if (Widget && Widget->Implements<UInteractInterface>())
+	{
+		Execute_InteractionProgress(Widget, 0.f); // Reset progress to 0
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("'%s' InteractionWidget does not implement IInteractInterface!"), *GetNameSafe(this));
+	}
+}
+
+
+void ABaseCharacter::RemoveInteractableActor(AInteractableActor* InteractableActor)
+{
+	if (CurrentInteractableActor == InteractableActor)
+	{
+		CurrentInteractableActor = nullptr;
+	}
+}
+
+void ABaseCharacter::AddInteractableActor(AInteractableActor* InteractableActor)
+{
+	if (InteractableActor)
+	{
+		CurrentInteractableActor = InteractableActor;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("'%s' InteractableActor is null!"), *GetNameSafe(this));
+	}
+}
+
+
