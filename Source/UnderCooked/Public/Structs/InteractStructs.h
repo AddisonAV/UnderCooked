@@ -1,12 +1,18 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
+#include "InteractStructs.generated.h"
 
 class AInteractableActor;
 
 
+USTRUCT(BlueprintType)
 struct UNDERCOOKED_API FCurrentInteraction
 {
+	GENERATED_BODY()
+
+public:	
+	UPROPERTY()
 	AInteractableActor*	InteractableActor;
 	bool bTimedInteract;
 	double InteractionStartTime;

@@ -14,9 +14,13 @@ AInteractableActor::AInteractableActor()
 	PrimaryActorTick.bCanEverTick = false;
 	PrimaryActorTick.bStartWithTickEnabled = false;
 
+	bReplicates = true; // Enable replication for this actor
+
 	InteractionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("InteractionBox"));
 	InteractionBox->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+	InteractionBox->SetIsReplicated(true); // Ensure component replicates
 	InteractionBox->SetupAttachment(RootComponent);
+	InteractionBox->SetGenerateOverlapEvents(true);
 	InteractionBox->SetVisibility(true);
 	InteractionBox->SetHiddenInGame(false);
 }

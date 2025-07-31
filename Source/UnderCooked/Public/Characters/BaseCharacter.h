@@ -44,9 +44,18 @@ protected:
 	void InteractOngoing(const FInputActionValue& Value);
 	void InteractCompleted(const FInputActionValue& Value);
 	
+	UFUNCTION()
+	void OnRep_InteractionProgress();
+
+	UFUNCTION(Server, Reliable)
+	void ServerInteractOngoing(float Progress);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerProcessInteraction(AInteractableActor* InteractableActor);
+	
 
 private:
-
+	void ProcessInteraction(AInteractableActor* InteractableActor);
 	// IInteractInterface implementation
 	virtual void AddInteractableActor(AInteractableActor* InteractableActor) override;
 	virtual void RemoveInteractableActor(AInteractableActor* InteractableActor) override;
@@ -71,7 +80,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Widgets")
+	UPROPERTY(EditAnywhere, Replicated, BlueprintReadOnly, Category = "Widgets")
 	UWidgetComponent* InteractionProgress = nullptr;
 	
 private:
@@ -79,6 +88,11 @@ private:
 	UPROPERTY()
 	AInteractableActor* CurrentInteractableActor = nullptr; // The currently interactable actor, if any
 
+	UPROPERTY(Replicated)
 	FCurrentInteraction CurrentInteraction = FCurrentInteraction(); // Current interaction state
+
+	// Add this property
+	UPROPERTY(ReplicatedUsing=OnRep_InteractionProgress)
+	float ReplicatedInteractionProgress = 0.0f;
 	
 };

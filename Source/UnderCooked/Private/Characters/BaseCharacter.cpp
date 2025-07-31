@@ -8,7 +8,17 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/WidgetComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Net/UnrealNetwork.h"
 
+
+void ABaseCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(ABaseCharacter, InteractionProgress);
+	DOREPLIFETIME(ABaseCharacter, CurrentInteraction);
+	DOREPLIFETIME(ABaseCharacter, ReplicatedInteractionProgress);
+}
 
 // Sets default values
 ABaseCharacter::ABaseCharacter()
@@ -16,6 +26,8 @@ ABaseCharacter::ABaseCharacter()
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = false;
 	PrimaryActorTick.bStartWithTickEnabled = false;
+
+	bReplicates = true;
 
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(80.f, 220.0f);
@@ -136,10 +148,18 @@ void ABaseCharacter::Interact(const FInputActionValue& Value)
 {
 	if (CurrentInteractableActor != nullptr)
 	{
-		CurrentInteraction.InteractableActor = CurrentInteractableActor;
-		CurrentInteraction.InteractionStartTime = FPlatformTime::Seconds();
-		CurrentInteraction.InteractionDuration = CurrentInteractableActor->InteractionDuration;
-		CurrentInteraction.bTimedInteract = CurrentInteractableActor->bIsTimedInteract;
+		if (HasAuthority())
+		{
+			// Server processes interaction directly
+			ProcessInteraction(CurrentInteractableActor);
+		}
+		else
+		{
+			// Client: update local interaction for immediate feedback
+			ProcessInteraction(CurrentInteractableActor); 
+			// Client sends interaction request to the server
+			ServerProcessInteraction(CurrentInteractableActor);
+		}
 	}
 }
 
@@ -147,8 +167,20 @@ void ABaseCharacter::InteractOngoing(const FInputActionValue& Value)
 {
 	if (CurrentInteraction.bTimedInteract)
 	{
+		// Disable movement while interacting with timed interactable actors
+		GetCharacterMovement()->DisableMovement();
+		
 		float Progress = (FPlatformTime::Seconds() - CurrentInteraction.InteractionStartTime) / CurrentInteraction.InteractionDuration;
 		// Check if widget implements interface
+
+		if (HasAuthority())
+		{
+			ReplicatedInteractionProgress = Progress;
+		}
+		else
+		{
+			ServerInteractOngoing(Progress);
+		}
 
 		if (Progress <= 1.0f)
 		{
@@ -168,7 +200,21 @@ void ABaseCharacter::InteractOngoing(const FInputActionValue& Value)
 
 void ABaseCharacter::InteractCompleted(const FInputActionValue& Value)
 {
+	// If the interaction was timed, we need to re-enable movement
+	if (CurrentInteraction.bTimedInteract)
+	{
+		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking); // Re-enable movement
+	}
 	CurrentInteraction = FCurrentInteraction(); // Reset current interaction
+
+	if (HasAuthority())
+	{
+		ReplicatedInteractionProgress = 0.f; // Reset progress on the server
+	}
+	else
+	{
+		ServerInteractOngoing(0.f); // Reset progress on the client
+	}
 
 	UUserWidget* Widget = Cast<UUserWidget>(InteractionProgress->GetWidget());
 	if (Widget && Widget->Implements<UInteractInterface>())
@@ -181,13 +227,43 @@ void ABaseCharacter::InteractCompleted(const FInputActionValue& Value)
 	}
 }
 
-
-void ABaseCharacter::RemoveInteractableActor(AInteractableActor* InteractableActor)
+void ABaseCharacter::OnRep_InteractionProgress()
 {
-	if (CurrentInteractableActor == InteractableActor)
+	UUserWidget* Widget = Cast<UUserWidget>(InteractionProgress->GetWidget());
+	if (Widget && Widget->Implements<UInteractInterface>())
 	{
-		CurrentInteractableActor = nullptr;
+		Execute_InteractionProgress(Widget, ReplicatedInteractionProgress);
 	}
+}
+
+void ABaseCharacter::ServerInteractOngoing_Implementation(float Progress)
+{
+	ReplicatedInteractionProgress = Progress;
+}
+
+void ABaseCharacter::ServerProcessInteraction_Implementation(AInteractableActor* InteractableActor)
+{
+	// Validate the interaction on the server
+	if (InteractableActor)
+	{
+		ProcessInteraction(InteractableActor);
+	}
+}
+
+bool ABaseCharacter::ServerProcessInteraction_Validate(AInteractableActor* InteractableActor)
+{
+	return true;
+}
+
+void ABaseCharacter::ProcessInteraction(AInteractableActor* InteractableActor)
+{
+	CurrentInteraction.InteractableActor = InteractableActor;
+	CurrentInteraction.InteractionStartTime = FPlatformTime::Seconds();
+	CurrentInteraction.InteractionDuration = InteractableActor->InteractionDuration;
+	CurrentInteraction.bTimedInteract = InteractableActor->bIsTimedInteract;
+
+	// Update replicated progress
+	ReplicatedInteractionProgress = 0.0f;
 }
 
 void ABaseCharacter::AddInteractableActor(AInteractableActor* InteractableActor)
@@ -199,6 +275,14 @@ void ABaseCharacter::AddInteractableActor(AInteractableActor* InteractableActor)
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("'%s' InteractableActor is null!"), *GetNameSafe(this));
+	}
+}
+
+void ABaseCharacter::RemoveInteractableActor(AInteractableActor* InteractableActor)
+{
+	if (CurrentInteractableActor == InteractableActor)
+	{
+		CurrentInteractableActor = nullptr;
 	}
 }
 
