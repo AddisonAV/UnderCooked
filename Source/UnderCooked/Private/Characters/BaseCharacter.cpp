@@ -5,6 +5,7 @@
 #include "EnhancedInputComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/WidgetComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
 
@@ -37,7 +38,13 @@ ABaseCharacter::ABaseCharacter()
 	// Create a follow camera
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->bUsePawnControlRotation = false;
-	FollowCamera->SetRelativeLocation(FVector(0.0f, 0.0f, 0.0f));
+	FollowCamera->SetRelativeLocation(FVector(-1000.0f, 0.0f, 2400.0f));
+	FollowCamera->SetRelativeRotation(FRotator(-70.0f, 0.0f, 0.0f));
+
+	// Create the interaction progress widget
+	InteractionProgress = CreateDefaultSubobject<UWidgetComponent>(TEXT("InteractionProgress"));
+	InteractionProgress->SetupAttachment(RootComponent);
+	InteractionProgress->SetWidgetClass(InteractionProgressWidget);
 }
 
 // Called when the game starts or when spawned
@@ -55,7 +62,8 @@ void ABaseCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
 		// Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ABaseCharacter::Move);
-		
+
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Triggered, this, &ABaseCharacter::ToggleSprint);
 	}
 	else
 	{
@@ -100,3 +108,17 @@ void ABaseCharacter::DoMove(float Right, float Forward)
 	}
 }
 
+void ABaseCharacter::ToggleSprint(const FInputActionValue& Value)
+{
+	if (GetCharacterMovement())
+	{
+		if (GetCharacterMovement()->MaxWalkSpeed == 500.f)
+		{
+			GetCharacterMovement()->MaxWalkSpeed = 800.f; // Sprint speed
+		}
+		else
+		{
+			GetCharacterMovement()->MaxWalkSpeed = 500.f; // Walk speed
+		}
+	}
+}

@@ -7,6 +7,7 @@
 #include "Interfaces/CharacterInterface.h"
 #include "BaseCharacter.generated.h"
 
+class UWidgetComponent;
 class UInputAction;
 class UCameraComponent;
 struct FInputActionValue;
@@ -34,6 +35,8 @@ protected:
 	void Move(const FInputActionValue& Value);
 	
 	void DoMove(float Right, float Forward);
+
+	void ToggleSprint(const FInputActionValue& Value);
 	
 /* ------------------ Proprieties ------------------ */
 
@@ -44,9 +47,28 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input")
 	UInputAction* MoveAction = nullptr;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input")
+	UInputAction* SprintAction = nullptr;
+
 
 	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera = nullptr;
+
+	/* * Interaction Progress Widget
+	 * This widget is used to show the progress of an interaction, such as cooking or serving a dish.
+	 * It is attached to the character and will be visible when the character is interacting with an object.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
+	TSubclassOf<UUserWidget> InteractionProgressWidget = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Widgets")
+	UWidgetComponent* InteractionProgress = nullptr;
+	
+private:
+
+	
+
+	
 	
 };
